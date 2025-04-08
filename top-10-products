@@ -1,0 +1,59 @@
+# 🛒 SQL Case: Top 10 Products by Delivered Orders (September 2022)
+
+## 🎯 Goal
+
+Identify the top 10 most purchased products in **delivered orders only**, during **September 2022**.
+
+### Business constraints:
+- A product is counted **only once per order**, even if it appears multiple times.
+- Only orders with a **"deliver_order"** status are considered.
+- Products are ranked by **how often they appeared in completed deliveries** during the selected period.
+
+---
+
+## 📁 Data Sources
+
+- `orders`: contains `order_id` and `product_ids` (array)
+- `courier_actions`: logs courier events (e.g. `deliver_order`, `cancel_order`) with timestamps
+- `products`: product catalog (name, product_id, price, etc.)
+
+---
+
+## 🔧 Logic
+
+1. Filter `courier_actions` to include only orders marked as `'deliver_order'` in September 2022.
+2. Use `UNNEST(product_ids)` to expand arrays into rows.
+3. Use `DISTINCT` to ensure a product is counted **once per order**.
+4. Join with `products` to get product names.
+5. Count how many times each product appeared in completed orders.
+
+---
+
+## 🧠 Final SQL Query
+
+```sql
+WITH t1 AS (
+  SELECT DISTINCT order_id, time
+  FROM courier_actions
+  WHERE action = 'deliver_order'
+    AND time >= DATE '2022-09-01'
+    AND time < DATE '2022-10-01'
+), 
+t2 AS (
+  SELECT DISTINCT order_id, UNNEST(product_ids) AS product_id 
+  FROM orders
+),
+joined AS (
+  SELECT * 
+  FROM t1 
+  LEFT JOIN t2 USING(order_id)
+)
+
+SELECT 
+  p.name, 
+  COUNT(*) AS times_purchased
+FROM products p
+LEFT JOIN joined j USING(product_id)
+GROUP BY p.name
+ORDER BY times_purchased DESC
+LIMIT 10;

@@ -1,0 +1,46 @@
+
+---
+
+## 📁 Data Sources
+
+- `user_actions`: contains `user_id`, `order_id`, `action`, `time`
+- `users`: contains `user_id`, `sex`, and other profile fields
+
+---
+
+## 🧠 Logic
+
+1. Count the number of `cancel_order` and `create_order` actions per `user_id`
+2. Calculate cancel rate using `FILTER (WHERE ...)` inside aggregation
+3. Join results with the `users` table to get gender info
+4. Use `COALESCE(sex, 'unknown')` to group users without gender
+5. Calculate the average cancel rate per gender group
+
+---
+
+## 🧩 SQL Query
+
+```sql
+WITH cr AS (
+  SELECT 
+    user_id,
+    ROUND(
+      COUNT(order_id) FILTER (WHERE action = 'cancel_order')::DECIMAL / 
+      COUNT(order_id) FILTER (WHERE action = 'create_order'),
+      2
+    ) AS cancel_rate
+  FROM user_actions
+  GROUP BY user_id
+), 
+joined AS (
+  SELECT user_id, cancel_rate, sex
+  FROM cr 
+  LEFT JOIN users u USING(user_id)
+)
+
+SELECT 
+  COALESCE(sex, 'unknown') AS sex, 
+  ROUND(AVG(cancel_rate), 3) AS avg_cancel_rate 
+FROM joined 
+GROUP BY 1
+ORDER BY 1;
